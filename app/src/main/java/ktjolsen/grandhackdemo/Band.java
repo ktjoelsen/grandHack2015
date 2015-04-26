@@ -1,6 +1,7 @@
 package ktjolsen.grandhackdemo;
 
 import android.app.Activity;
+import android.util.Log;
 
 import com.microsoft.band.BandClient;
 import com.microsoft.band.BandClientManager;
@@ -91,6 +92,7 @@ public class Band {
             @Override
             public void onBandHeartRateChanged(BandHeartRateEvent event) {
                 // do work on heart rate changed (i.e. update UI)
+                Log.d("heartrate", Integer.toString(event.getHeartRate()));
                 heartRates.add(event.getHeartRate());
             }
         };
@@ -102,7 +104,21 @@ public class Band {
 
         }
     }
+
+    /**
+     *
+     * @return
+     */
+    public int getRecentHeartRate() {
+        if (heartRates.size() > 0) {
+            return heartRates.get(heartRates.size() - 1);
+        } else {
+            return -1;
+        }
+    }
 }
+
+
 
 
 
