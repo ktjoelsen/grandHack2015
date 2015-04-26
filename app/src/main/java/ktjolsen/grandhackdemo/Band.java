@@ -1,62 +1,108 @@
 package ktjolsen.grandhackdemo;
 
 import android.app.Activity;
-import android.os.AsyncTask;
-import android.util.Log;
 
 import com.microsoft.band.BandClient;
 import com.microsoft.band.BandClientManager;
 import com.microsoft.band.BandDeviceInfo;
 import com.microsoft.band.BandException;
+import com.microsoft.band.BandIOException;
+import com.microsoft.band.BandPendingResult;
 import com.microsoft.band.ConnectionResult;
+import com.microsoft.band.sensors.BandHeartRateEvent;
+import com.microsoft.band.sensors.BandHeartRateEventListener;
+
+import java.util.ArrayList;
+import java.util.List;
 
 
 /**
- * Created by ktjolsen on 4/25/15.
+ *
  */
 public class Band {
 
     private Activity activity;
+    private BandClient bandClient;
+
+    private List<Integer> heartRates = new ArrayList<Integer>();
 
     public Band(Activity activity) {
+
         this.activity = activity;
-    }
 
-    public void setupBand() {
-        BandDeviceInfo[] pairedBands = BandClientManager.getInstance().getPairedBands();
+        // create bandClient
+        final BandDeviceInfo[] pairedBands = BandClientManager.getInstance().getPairedBands();
         BandClient bandClient = BandClientManager.getInstance().create(activity, pairedBands[0]);
-        Log.d("setupBand", bandClient.toString());
-        new ConnectTask().execute(bandClient);
-        Log.d("setupBand", "connected");
+        this.bandClient = bandClient;
+        setupBand();
+
     }
 
+    /**
+     * Connect phone with band and start getHeartRateData
+     */
+    public void setupBand() {
 
-}
+        new Thread(new Runnable() {
+            public void run() {
+                try {
+                    BandPendingResult<ConnectionResult> pendingResult = bandClient.connect();
+                    try {
+                        ConnectionResult result = pendingResult.await();
+                        if (result == ConnectionResult.OK) {
+                            // do work on success
+                            getHeartRateData();
+                        } else {
+                            // do work on failure
+                        }
+                    } catch(InterruptedException ex) {
+                        // handle InterruptedException
+                    } catch(BandException ex) {
+                        // handle BandException
+                    }
+                } catch (BandIOException e) {
+                    e.printStackTrace();
+                }
+            }
+        }).start();
 
-class ConnectTask extends AsyncTask<BandClient, Void, ConnectionResult> {
-    @Override
-    protected ConnectionResult doInBackground(BandClient... clientParams) {
+
+    }
+
+    private int getAvailableSpace() {
         try {
-            return clientParams[0].connect().await();
-        } catch (InterruptedException e) {
-            Log.d("ConnectBand", ConnectionResult.TIMEOUT.toString());
-            return ConnectionResult.TIMEOUT;
+            // determine the number of available tile slots on the Band
+            int tileCapacity = this.bandClient.getTileManager().getRemainingTileCapacity().await();
+            return tileCapacity;
         } catch (BandException e) {
-            Log.d("ConnectBand", ConnectionResult.INTERNAL_ERROR.toString());
-            return ConnectionResult.INTERNAL_ERROR;
+            // handle BandException
+        } catch (InterruptedException e) {
+            // handle InterruptedException
         }
+        return -1;
     }
 
-    protected void onPostExecute(ConnectionResult result) {
-        if (result == ConnectionResult.OK) {
+    /**
+     * Continuously read heart rate data
+     */
+    private void getHeartRateData() {
+        // create a heart rate event listener
+        BandHeartRateEventListener heartRateListener = new BandHeartRateEventListener() {
+            @Override
+            public void onBandHeartRateChanged(BandHeartRateEvent event) {
+                // do work on heart rate changed (i.e. update UI)
+                heartRates.add(event.getHeartRate());
+            }
+        };
 
-            Log.d("ConnectBand", "is connected YESS!");
+        try {
+            // register the listener
+            bandClient.getSensorManager().registerHeartRateEventListener(heartRateListener);
+        } catch (BandException ex) {
+
         }
-
-        else {
-            Log.d("ConnectBand", "not yet.......");
-        }
-
     }
 }
+
+
 
